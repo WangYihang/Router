@@ -1,4 +1,4 @@
-# Master-Slack
+# Master-Slave
 
 #### 初衷
 
